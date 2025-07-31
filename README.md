@@ -259,25 +259,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Slow Performance**: Reduce data volume and use standard analysis
 - **Memory Issues**: Clear browser cache and restart
 
-## 🗺️ Roadmap
-
-### **Version 2.0 (Planned)**
-- [ ] Portfolio tracking and analysis
-- [ ] Real-time alerts and notifications
-- [ ] Advanced technical indicators
-- [ ] Options and derivatives analysis
-- [ ] Multi-language interface
-- [ ] Mobile app version
-
-### **Future Integrations**
-- [ ] Bloomberg Terminal API
-- [ ] Twitter sentiment analysis
-- [ ] Reddit financial discussions
-- [ ] Earnings call transcripts
-- [ ] SEC filing analysis
-
----
-
 **⭐ If you find FinWise AI useful, please star this repository!**
 
 **Built with ❤️ by Prince Patel | © 2025 FinWise AI**
