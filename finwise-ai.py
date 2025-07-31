@@ -1186,7 +1186,7 @@ def create_enhanced_streamlit_app():
             
             # Timeline visualization
             if st.session_state.processed_data['news_data']:
-                st.subheader("📅 News Timeline")
+                st.subheader("News Timeline")
                 
                 # Create timeline data
                 news_dates = []
@@ -1209,47 +1209,72 @@ def create_enhanced_streamlit_app():
                     
                     st.plotly_chart(fig, use_container_width=True, key="news_timeline_chart")
     
+    # ===== CHAT INPUT - MUST BE OUTSIDE TABS =====
     if 'analysis_results' in st.session_state and 'processed_data' in st.session_state:
         st.markdown("---")
         st.subheader("Ask FinWise AI")
         
+        # Initialize chat history and processing flag
+        if 'chat_history' not in st.session_state:
+            st.session_state.chat_history = []
+        if 'processing_query' not in st.session_state:
+            st.session_state.processing_query = False
+        
         # Chat input (outside all containers)
         user_question = st.chat_input("Ask a financial question about your analysis...")
         
-        if user_question and 'pipeline' in st.session_state:
-            # Initialize chat history if not exists
-            if 'chat_history' not in st.session_state:
-                st.session_state.chat_history = []
+        # Process new question only if not currently processing and question is new
+        if (user_question and 'pipeline' in st.session_state and 
+            not st.session_state.processing_query and
+            (not st.session_state.chat_history or 
+             st.session_state.chat_history[-1]['question'] != user_question)):
+            
+            # Set processing flag to prevent multiple processing
+            st.session_state.processing_query = True
             
             with st.spinner("Analyzing your question..."):
-                # Create filters based on current analysis
-                filters = {
-                    'topic': st.session_state.analysis_results['metadata']['topic'],
-                    'country': st.session_state.analysis_results['metadata'].get('country')
-                }
+                try:
+                    # Create filters based on current analysis
+                    filters = {
+                        'topic': st.session_state.analysis_results['metadata']['topic'],
+                        'country': st.session_state.analysis_results['metadata'].get('country')
+                    }
+                    
+                    # Remove None values from filters
+                    filters = {k: v for k, v in filters.items() if v is not None}
+                    
+                    answer = st.session_state.pipeline.advisor.answer_custom_financial_query(
+                        user_question, filters
+                    )
+                    
+                    # Store in chat history
+                    st.session_state.chat_history.append({
+                        'question': user_question,
+                        'answer': answer,
+                        'timestamp': datetime.now().strftime('%H:%M:%S')
+                    })
+                    
+                    # Show success message
+                    st.success("Response generated! Check the AI Chat tab to see the conversation.")
+                    
+                except Exception as e:
+                    st.error(f"Error processing question: {str(e)}")
                 
-                # Remove None values from filters
-                filters = {k: v for k, v in filters.items() if v is not None}
-                
-                answer = st.session_state.pipeline.advisor.answer_custom_financial_query(
-                    user_question, filters
-                )
-            
-            # Store in chat history
-            st.session_state.chat_history.append({
-                'question': user_question,
-                'answer': answer,
-                'timestamp': datetime.now().strftime('%H:%M:%S')
-            })
-            
-            # Show success message
-            st.success("Response generated! Check the AI Chat tab to see the conversation.")
-            
-            # Rerun to show the new message
-            st.rerun()
+                finally:
+                    # Reset processing flag
+                    st.session_state.processing_query = False
         
-        elif user_question:
+        elif user_question and not st.session_state.get('pipeline'):
             st.warning("Please run an analysis first to enable the AI assistant!")
+        
+        # Display recent chat without triggering rerun
+        if st.session_state.chat_history:
+            with st.expander("Recent Conversation", expanded=True):
+                latest_chat = st.session_state.chat_history[-1]
+                st.markdown(f"**You:** {latest_chat['question']}")
+                st.markdown(f"**FinWise AI:** {latest_chat['answer']}")
+                if len(st.session_state.chat_history) > 1:
+                    st.info(f"{len(st.session_state.chat_history)} total conversations. View all in the AI Chat tab.")
     
     # Footer
     st.markdown("---")
