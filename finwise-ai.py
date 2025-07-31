@@ -754,38 +754,16 @@ def create_enhanced_streamlit_app():
     with st.sidebar:
         st.header("Configuration")
         # Clear Cache & Reset - Ultra-Safe Version
-        col_reset1, col_reset2 = st.columns(2)
-
-        with col_reset1:
-            if st.button("Clear Data", help="Clear analysis data only"):
-                try:
-                    # Clear only analysis-related data
-                    analysis_keys = ['analysis_results', 'processed_data', 'pipeline', 'chat_history']
-                    for key in analysis_keys:
-                        if key in st.session_state:
-                            del st.session_state[key]
-                    st.success("Analysis data cleared!")
-                except Exception as e:
-                    st.error(f"Error: {str(e)}")
-
-        with col_reset2:
-            if st.button("Full Reset", help="Clear everything and restart"):
-                try:
-                    # Use JavaScript to force page reload (most reliable)
-                    st.markdown("""
-                    <script>
-                    setTimeout(function(){
-                        window.location.reload();
-                    }, 1000);
-                    </script>
-                    """, unsafe_allow_html=True)
-                    
-                    st.success("Reloading page...")
-                    st.cache_data.clear()
-                    
-                except Exception as e:
-                    st.error(f"Error: {str(e)}")
-                    st.info("Please refresh the page manually.")
+        if st.button("Clear Data", help="Clear analysis data only"):
+            try:
+                # Clear only analysis-related data
+                analysis_keys = ['analysis_results', 'processed_data', 'pipeline', 'chat_history']
+                for key in analysis_keys:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.success("Analysis data cleared!")
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
         # API Keys Configuration
         st.subheader("API Configuration")
         news_api_key = st.text_input("News API Key", type="password", help="Get from newsapi.org")
