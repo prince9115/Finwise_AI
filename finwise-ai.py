@@ -997,13 +997,13 @@ def create_enhanced_streamlit_app():
             
             st.write(f"Current time: {current_time.strftime('%H:%M %Z')}")
     
-    # Results Display Section
+    # Results Display Section - TABS MOVED OUTSIDE COLUMNS
     if 'analysis_results' in st.session_state and 'processed_data' in st.session_state:
         st.markdown("---")
         st.header("Analysis Results")
         
         # Create tabs for different views
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["Overview", "News Analysis", "Market Analysis", "AI Chat", "Visualizations"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([" Overview", " News Analysis", " Market Analysis", " AI Chat", " Visualizations"])
         
         with tab1:
             st.subheader("Analysis Overview")
@@ -1016,10 +1016,10 @@ def create_enhanced_streamlit_app():
             
             with metrics_col1:
                 st.metric("News Sources", len(set([
-    article.get('source', {}).get('name', 'Unknown') 
-    for article in data['news_data'] 
-    if article.get('source', {}).get('name')
-])))
+                    article.get('source', {}).get('name', 'Unknown') 
+                    for article in data['news_data'] 
+                        if article.get('source', {}).get('name')
+                ])))
             with metrics_col2:
                 st.metric("Market Symbols", len(data['market_data']))
             with metrics_col3:
@@ -1029,20 +1029,20 @@ def create_enhanced_streamlit_app():
             
             # Key highlights
             if data['news_data']:
-                st.subheader("Latest Headlines")
+                st.subheader(" Latest Headlines")
                 for i, article in enumerate(data['news_data'][:5]):
                     with st.expander(f"{article['title'][:80]}..."):
                         st.write(f"**Source:** {article.get('source', {}).get('name', 'Unknown')}")
                         st.write(f"**Published:** {article.get('publishedAt', 'Unknown')}")
                         st.write(f"**Description:** {article.get('description', 'No description available')}")
                         if article.get('url'):
-                            st.write(f"**[Read Full Article]({article['url']})**")
+                            st.markdown(f"**[ Read Full Article]({article['url']})**")
         
         with tab2:
-            st.subheader("News Sentiment Analysis")
+            st.subheader(" News Sentiment Analysis")
             
             if 'sentiment_analysis' in st.session_state.analysis_results:
-                st.write(st.session_state.analysis_results['sentiment_analysis'])
+                st.markdown(st.session_state.analysis_results['sentiment_analysis'])
             else:
                 st.info("No sentiment analysis available. Make sure news data was fetched successfully.")
             
@@ -1060,16 +1060,16 @@ def create_enhanced_streamlit_app():
                 st.dataframe(news_df, use_container_width=True)
         
         with tab3:
-            st.subheader("Market Data Analysis")
+            st.subheader(" Market Data Analysis")
             
             if 'market_analysis' in st.session_state.analysis_results:
-                st.write(st.session_state.analysis_results['market_analysis'])
+                st.markdown(st.session_state.analysis_results['market_analysis'])
             else:
                 st.info("No market analysis available. Add stock symbols to your analysis.")
             
             # Market data visualization and table
             if st.session_state.processed_data['market_data']:
-                st.subheader("Market Data Overview")
+                st.subheader(" Market Data Overview")
                 
                 # Create market data summary
                 market_summary = []
@@ -1099,63 +1099,30 @@ def create_enhanced_streamlit_app():
                     st.dataframe(market_df, use_container_width=True)
         
         with tab4:
-            st.subheader("AI Financial Assistant")
-            st.write("Ask me anything about your analysis or financial markets!")
+            st.subheader(" AI Financial Assistant")
+            st.markdown("Ask me anything about your analysis or financial markets!")
             
-            # Display chat history
+            # Initialize chat history if not exists
             if 'chat_history' not in st.session_state:
                 st.session_state.chat_history = []
             
-            for i, chat in enumerate(st.session_state.chat_history):
-                with st.chat_message("user"):
-                    st.write(chat['question'])
-                with st.chat_message("assistant"):
-                    st.write(chat['answer'])
-            
-            # Note about chat input location
-            st.info("💡 The chat input is located at the bottom of the page, outside the tabs.")
-            
-            if 'analysis_results' in st.session_state and 'processed_data' in st.session_state:
-                st.markdown("---")
-                st.subheader("AI Financial Assistant Chat")
-                
-                # Chat input (must be outside tabs/columns/expanders)
-                user_question = st.chat_input("Ask a financial question about your analysis...")
-                
-                if user_question and 'pipeline' in st.session_state:
-                    # Add to chat history
-                    if 'chat_history' not in st.session_state:
-                        st.session_state.chat_history = []
-                    
-                    with st.spinner("Thinking..."):
-                        # Create filters based on current analysis
-                        filters = {
-                            'topic': st.session_state.analysis_results['metadata']['topic'],
-                            'country': st.session_state.analysis_results['metadata'].get('country')
-                        }
-                        
-                        answer = st.session_state.pipeline.advisor.answer_custom_financial_query(
-                            user_question, filters
-                        )
-                    
-                    # Store in chat history
-                    st.session_state.chat_history.append({
-                        'question': user_question,
-                        'answer': answer
-                    })
-                    
-                    # Rerun to show the new message
-                    st.rerun()
-                
-                elif user_question:
-                    st.warning("Please run an analysis first to enable the AI assistant!")
+            # Display chat history
+            if st.session_state.chat_history:
+                st.subheader(" Chat History")
+                for i, chat in enumerate(st.session_state.chat_history):
+                    with st.container():
+                        st.markdown(f"**You:** {chat['question']}")
+                        st.markdown(f"**FinWise AI:** {chat['answer']}")
+                        st.markdown("---")
+            else:
+                st.info("Start a conversation by asking a question below!")
         
         with tab5:
-            st.subheader("Data Visualizations")
+            st.subheader(" Data Visualizations")
             
             # Market data visualizations
             if st.session_state.processed_data['market_data']:
-                st.subheader("Market Performance Charts")
+                st.subheader(" Market Performance Charts")
                 
                 for symbol, data in st.session_state.processed_data['market_data'].items():
                     if data and isinstance(data, dict):
@@ -1201,7 +1168,7 @@ def create_enhanced_streamlit_app():
             
             # News source distribution
             if st.session_state.processed_data['news_data']:
-                st.subheader("News Sources Distribution")
+                st.subheader("📊 News Sources Distribution")
                 
                 sources = [article.get('source', {}).get('name', 'Unknown')
                           for article in st.session_state.processed_data['news_data']]
@@ -1219,7 +1186,7 @@ def create_enhanced_streamlit_app():
             
             # Timeline visualization
             if st.session_state.processed_data['news_data']:
-                st.subheader("News Timeline")
+                st.subheader("📅 News Timeline")
                 
                 # Create timeline data
                 news_dates = []
@@ -1241,58 +1208,57 @@ def create_enhanced_streamlit_app():
                     )
                     
                     st.plotly_chart(fig, use_container_width=True, key="news_timeline_chart")
+    
+    if 'analysis_results' in st.session_state and 'processed_data' in st.session_state:
+        st.markdown("---")
+        st.subheader("Ask FinWise AI")
+        
+        # Chat input (outside all containers)
+        user_question = st.chat_input("Ask a financial question about your analysis...")
+        
+        if user_question and 'pipeline' in st.session_state:
+            # Initialize chat history if not exists
+            if 'chat_history' not in st.session_state:
+                st.session_state.chat_history = []
             
-            # News source distribution
-            if st.session_state.processed_data['news_data']:
-                st.subheader("News Sources Distribution")
+            with st.spinner("Analyzing your question..."):
+                # Create filters based on current analysis
+                filters = {
+                    'topic': st.session_state.analysis_results['metadata']['topic'],
+                    'country': st.session_state.analysis_results['metadata'].get('country')
+                }
                 
-                sources = [article.get('source', {}).get('name', 'Unknown')
-                          for article in st.session_state.processed_data['news_data']]
-                source_counts = pd.Series(sources).value_counts().head(10)
+                # Remove None values from filters
+                filters = {k: v for k, v in filters.items() if v is not None}
                 
-                fig = px.bar(
-                    x=source_counts.values,
-                    y=source_counts.index,
-                    orientation='h',
-                    title="Top News Sources",
-                    labels={'x': 'Number of Articles', 'y': 'Source'}
+                answer = st.session_state.pipeline.advisor.answer_custom_financial_query(
+                    user_question, filters
                 )
-                
-                st.plotly_chart(fig, use_container_width=True, key="news_sources_dist")
             
-            # Timeline visualization
-            if st.session_state.processed_data['news_data']:
-                st.subheader("News Timeline")
-                
-                # Create timeline data
-                news_dates = []
-                for article in st.session_state.processed_data['news_data']:
-                    if article.get('publishedAt'):
-                        try:
-                            news_dates.append(pd.to_datetime(article['publishedAt']).date())
-                        except:
-                            continue
-                
-                if news_dates:
-                    date_counts = pd.Series(news_dates).value_counts().sort_index()
-                    
-                    fig = px.line(
-                        x=date_counts.index,
-                        y=date_counts.values,
-                        title="News Articles Over Time",
-                        labels={'x': 'Date', 'y': 'Number of Articles'}
-                    )
-                    
-                    st.plotly_chart(fig, use_container_width=True, key="news_data_timeline")
+            # Store in chat history
+            st.session_state.chat_history.append({
+                'question': user_question,
+                'answer': answer,
+                'timestamp': datetime.now().strftime('%H:%M:%S')
+            })
+            
+            # Show success message
+            st.success("Response generated! Check the AI Chat tab to see the conversation.")
+            
+            # Rerun to show the new message
+            st.rerun()
+        
+        elif user_question:
+            st.warning("Please run an analysis first to enable the AI assistant!")
     
     # Footer
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center; color: #666;'>
-    <p>FinWise AI - Enhanced Global Financial Intelligence Platform</p>
+    <p><strong>FinWise AI - Enhanced Global Financial Intelligence Platform</strong></p>
     <p>Analyze any topic, anywhere, anytime with AI-powered insights</p>
     <p><small>This tool provides informational analysis only. Not financial advice. Always consult with qualified professionals.</small></p>
-    <p><b>Created by Prince Patel</b></p>
+    <p><strong>Created by Prince Patel</strong></p>
     </div>
     """, unsafe_allow_html=True)
 
