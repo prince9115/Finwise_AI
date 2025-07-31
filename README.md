@@ -47,7 +47,7 @@ FinWise AI is a comprehensive financial intelligence platform that combines real
 
 ### 1. **Clone Repository**
 ```bash
-git clone https://github.com/yourusername/finwise-ai.git
+git clone https://github.com/prince9115/finwise-ai.git
 cd finwise-ai
 ```
 
