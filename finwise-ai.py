@@ -462,7 +462,7 @@ class EnhancedFinancialAdvisor:
         self.data_processor = EnhancedFinancialDataProcessor(cohere_api_key)
         self.conversation_history = []
     
-    def _call_groq_with_context(self, prompt: str, context: Dict, model: str = "llama3-8b-8192") -> str:
+    def _call_groq_with_context(self, prompt: str, context: Dict, model: str = "meta-llama/llama-4-scout-17b-16e-instruct") -> str:
         """Enhanced Groq call with context awareness"""
         try:
             # Build system message with context
