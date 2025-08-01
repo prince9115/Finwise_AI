@@ -6,3 +6,4 @@ plotly
 faiss-cpu
 groq>=0.4.0
 cohere>=4.0.0
+reportlab
