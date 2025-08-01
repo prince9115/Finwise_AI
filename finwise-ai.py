@@ -1,4 +1,3 @@
-# Enhanced FinWise AI - Flexible Topic & Geographic Analysis
 import os
 import streamlit as st
 import pandas as pd
@@ -13,6 +12,11 @@ import faiss
 import json
 import plotly.express as px
 import plotly.graph_objects as go
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib import colors
+from io import BytesIO
 
 @dataclass
 class APIConfig:
@@ -28,7 +32,6 @@ class EnhancedNewsAPIClient:
         self.api_key = api_key
         self.base_url = "https://newsapi.org/v2"
         
-        # Extended country codes mapping
         self.country_codes = {
             'United States': 'us', 'United Kingdom': 'gb', 'Canada': 'ca',
             'Australia': 'au', 'Germany': 'de', 'France': 'fr', 'Italy': 'it',
@@ -42,7 +45,6 @@ class EnhancedNewsAPIClient:
             'Philippines': 'ph', 'Indonesia': 'id', 'Malaysia': 'my'
         }
         
-        # News categories
         self.categories = [
             'general', 'business', 'entertainment', 'health', 'science', 
             'sports', 'technology'
@@ -57,30 +59,23 @@ class EnhancedNewsAPIClient:
                        language: str = 'en',
                        sort_by: str = 'relevancy', 
                        page_size: int = 50) -> List[Dict]:
-        """Get news based on custom user parameters"""
-        
         params = {
             'apiKey': self.api_key,
             'language': language,
             'sortBy': sort_by,
-            'pageSize': min(page_size, 100)  # API limit is 100
+            'pageSize': min(page_size, 100)
         }
         
-        # Use 'everything' endpoint for topic-based search with dates
         if topic or from_date or to_date:
             endpoint = f"{self.base_url}/everything"
-            
             if topic:
                 params['q'] = topic
             if from_date:
                 params['from'] = from_date
             if to_date:
                 params['to'] = to_date
-        
-        # Use 'top-headlines' endpoint for country/category specific news
         else:
             endpoint = f"{self.base_url}/top-headlines"
-            
             if country and country in self.country_codes:
                 params['country'] = self.country_codes[country]
             if category and category in self.categories:
@@ -90,14 +85,12 @@ class EnhancedNewsAPIClient:
             response = requests.get(endpoint, params=params, timeout=30)
             response.raise_for_status()
             data = response.json()
-            
             if data.get('status') == 'ok':
                 articles = data.get('articles', [])
                 return [article for article in articles if article.get('title') and article.get('description')]
             else:
                 st.error(f"News API Error: {data.get('message', 'Unknown error')}")
                 return []
-                
         except requests.exceptions.RequestException as e:
             st.error(f"Request Error: {str(e)}")
             return []
@@ -106,40 +99,32 @@ class EnhancedNewsAPIClient:
             return []
     
     def get_trending_topics(self, country: str = 'us') -> List[Dict]:
-        """Get trending headlines for a specific country"""
         country_code = self.country_codes.get(country, 'us')
-        
         params = {
             'country': country_code,
             'apiKey': self.api_key,
             'pageSize': 20
         }
-        
         try:
             response = requests.get(f"{self.base_url}/top-headlines", params=params)
             if response.status_code == 200:
                 return response.json().get('articles', [])
         except Exception as e:
             st.error(f"Error fetching trending topics: {str(e)}")
-        
         return []
     
     def search_sources(self, country: str = None, category: str = None) -> List[Dict]:
-        """Get available news sources for a country/category"""
         params = {'apiKey': self.api_key}
-        
         if country and country in self.country_codes:
             params['country'] = self.country_codes[country]
         if category and category in self.categories:
             params['category'] = category
-        
         try:
             response = requests.get(f"{self.base_url}/sources", params=params)
             if response.status_code == 200:
                 return response.json().get('sources', [])
         except Exception as e:
             st.error(f"Error fetching sources: {str(e)}")
-        
         return []
 
 class EnhancedAlphaVantageClient:
@@ -147,15 +132,13 @@ class EnhancedAlphaVantageClient:
         self.api_key = api_key
         self.base_url = "https://www.alphavantage.co/query"
         
-        # Global market indices
         self.global_indices = {
-            'US': ['SPY', 'QQQ', 'DIA', 'IWM'],  # S&P 500, NASDAQ, DOW, Russell 2000
-            'Europe': ['EWG', 'EWU', 'EWQ', 'EWI'],  # Germany, UK, France, Italy
-            'Asia': ['EWJ', 'EWY', 'INDA', 'EWS'],  # Japan, South Korea, India, Singapore
-            'Emerging': ['EEM', 'VWO', 'EWZ', 'RSX']  # Emerging Markets, Brazil, Russia
+            'US': ['SPY', 'QQQ', 'DIA', 'IWM'],
+            'Europe': ['EWG', 'EWU', 'EWQ', 'EWI'],
+            'Asia': ['EWJ', 'EWY', 'INDA', 'EWS'],
+            'Emerging': ['EEM', 'VWO', 'EWZ', 'RSX']
         }
         
-        # Sector ETFs for analysis
         self.sector_etfs = {
             'Technology': 'XLK',
             'Healthcare': 'XLV',
@@ -174,16 +157,13 @@ class EnhancedAlphaVantageClient:
                               symbols: List[str], 
                               interval: str = "daily",
                               region: str = "US") -> Dict[str, Dict]:
-        """Get market data for custom symbols and regions"""
         results = {}
-        
         function_map = {
             "daily": "TIME_SERIES_DAILY",
             "weekly": "TIME_SERIES_WEEKLY",  
             "monthly": "TIME_SERIES_MONTHLY",
             "intraday": "TIME_SERIES_INTRADAY"
         }
-        
         for symbol in symbols:
             try:
                 params = {
@@ -192,66 +172,51 @@ class EnhancedAlphaVantageClient:
                     'apikey': self.api_key,
                     'outputsize': 'compact'
                 }
-                
                 if interval == "intraday":
-                    params['interval'] = '60min'  # Default to hourly for intraday
-                
+                    params['interval'] = '60min'
                 response = requests.get(self.base_url, params=params, timeout=30)
-                
                 if response.status_code == 200:
                     data = response.json()
-                    
-                    # Check for API limit or error
                     if "Error Message" in data:
                         st.warning(f"Error for {symbol}: {data['Error Message']}")
                         continue
                     elif "Note" in data:
                         st.warning(f"API limit reached for {symbol}: {data['Note']}")
                         continue
-                    
                     results[symbol] = data
                 else:
                     st.warning(f"Failed to fetch data for {symbol}: HTTP {response.status_code}")
-                    
             except Exception as e:
                 st.error(f"Error fetching data for {symbol}: {str(e)}")
                 continue
-        
         return results
     
     def get_regional_indices(self, region: str) -> Dict[str, Dict]:
-        """Get data for regional market indices"""
         if region in self.global_indices:
             symbols = self.global_indices[region]
             return self.get_custom_market_data(symbols)
         return {}
     
     def get_sector_analysis(self, sectors: List[str]) -> Dict[str, Dict]:
-        """Get sector-specific market data"""
         symbols = [self.sector_etfs[sector] for sector in sectors if sector in self.sector_etfs]
         return self.get_custom_market_data(symbols)
     
     def get_forex_data(self, from_currency: str = "USD", to_currency: str = "EUR") -> Dict:
-        """Get forex data with custom currency pairs"""
         params = {
             'function': 'FX_DAILY',
             'from_symbol': from_currency.upper(),
             'to_symbol': to_currency.upper(),
             'apikey': self.api_key
         }
-        
         try:
             response = requests.get(self.base_url, params=params, timeout=30)
             if response.status_code == 200:
                 return response.json()
         except Exception as e:
             st.error(f"Error fetching forex data: {str(e)}")
-        
         return {}
     
     def get_economic_indicators(self, indicator: str = "GDP", country: str = "US") -> Dict:
-        """Get economic indicators for specific countries"""
-        # Alpha Vantage economic indicators (limited set)
         indicators_map = {
             'GDP': 'REAL_GDP',
             'CPI': 'CPI', 
@@ -259,25 +224,19 @@ class EnhancedAlphaVantageClient:
             'Federal Funds Rate': 'FEDERAL_FUNDS_RATE',
             'Treasury Yield': 'TREASURY_YIELD'
         }
-        
         function_name = indicators_map.get(indicator, 'REAL_GDP')
-        
         params = {
             'function': function_name,
             'apikey': self.api_key
         }
-        
-        # Add interval for certain indicators
         if function_name in ['CPI', 'UNEMPLOYMENT']:
             params['interval'] = 'monthly'
-        
         try:
             response = requests.get(self.base_url, params=params, timeout=30)
             if response.status_code == 200:
                 return response.json()
         except Exception as e:
             st.error(f"Error fetching economic data: {str(e)}")
-        
         return {}
 
 class EnhancedFinancialDataProcessor:
@@ -287,23 +246,18 @@ class EnhancedFinancialDataProcessor:
         self.documents = []
     
     def process_custom_news_data(self, articles: List[Dict], topic: str, country: str = None) -> List[Dict]:
-        """Process news data with custom topic and geographic context"""
         processed = []
         for article in articles:
             if article.get('title') and article.get('description'):
-                # Enhanced content with geographic and topic context
                 content_parts = [
                     f"Topic: {topic}",
                     f"Title: {article['title']}",
                     f"Description: {article['description']}"
                 ]
-                
                 if country:
                     content_parts.insert(1, f"Country: {country}")
-                
                 if article.get('content'):
-                    content_parts.append(f"Content: {article['content'][:500]}...")  # Truncate long content
-                
+                    content_parts.append(f"Content: {article['content'][:500]}...")
                 processed.append({
                     'title': article['title'],
                     'description': article['description'],
@@ -318,31 +272,22 @@ class EnhancedFinancialDataProcessor:
         return processed
     
     def process_enhanced_market_data(self, market_data: Dict[str, Dict], context: Dict) -> List[Dict]:
-        """Process market data with enhanced context"""
         processed = []
-        
         for symbol, data in market_data.items():
             if not data:
                 continue
-            
-            # Find the time series key
             time_series_key = None
             for key in data.keys():
                 if 'Time Series' in key or 'FX' in key:
                     time_series_key = key
                     break
-            
             if not time_series_key or time_series_key not in data:
                 continue
-            
             time_series = data[time_series_key]
-            
-            for date, values in list(time_series.items())[:30]:  # Last 30 entries
+            for date, values in list(time_series.items())[:30]:
                 try:
-                    # Handle different data formats
-                    if '1. open' in values:  # Stock data
+                    if '1. open' in values:
                         content = f"Symbol: {symbol} | Date: {date} | Region: {context.get('region', 'Global')} | Open: ${values['1. open']} | High: ${values['2. high']} | Low: ${values['3. low']} | Close: ${values['4. close']} | Volume: {values['5. volume']}"
-                        
                         processed.append({
                             'symbol': symbol,
                             'date': date,
@@ -355,9 +300,8 @@ class EnhancedFinancialDataProcessor:
                             'region': context.get('region', 'Global'),
                             'type': 'enhanced_market_data'
                         })
-                    elif 'close' in values:  # Some data formats use different keys
+                    elif 'close' in values:
                         content = f"Symbol: {symbol} | Date: {date} | Region: {context.get('region', 'Global')} | Close: ${values['close']}"
-                        
                         processed.append({
                             'symbol': symbol,
                             'date': date,
@@ -367,28 +311,21 @@ class EnhancedFinancialDataProcessor:
                             'type': 'enhanced_market_data'
                         })
                 except (ValueError, KeyError) as e:
-                    continue  # Skip malformed data
-        
+                    continue
         return processed
     
     def build_enhanced_vector_index(self, documents: List[Dict]):
-        """Build enhanced FAISS vector index with better error handling"""
         if not documents:
             st.warning("No documents to index")
             return
-        
         self.documents = documents
         texts = [doc['content'] for doc in documents if doc.get('content')]
-        
         if not texts:
             st.warning("No valid content found in documents")
             return
-        
         try:
-            # Generate embeddings using Cohere with batching for large datasets
-            batch_size = 96  # Cohere's batch limit is 96
+            batch_size = 96
             all_embeddings = []
-            
             with st.spinner(f"Generating embeddings for {len(texts)} documents..."):
                 for i in range(0, len(texts), batch_size):
                     batch_texts = texts[i:i + batch_size]
@@ -398,44 +335,31 @@ class EnhancedFinancialDataProcessor:
                         input_type="search_document"
                     )
                     all_embeddings.extend(response.embeddings)
-            
             embeddings = np.array(all_embeddings)
-            
-            # Build FAISS index
             dimension = embeddings.shape[1]
             self.index = faiss.IndexFlatL2(dimension)
             self.index.add(embeddings.astype('float32'))
-            
             st.success(f"Successfully indexed {len(texts)} documents")
-            
         except Exception as e:
             st.error(f"Error generating embeddings: {str(e)}")
             return
     
     def search_enhanced_similar(self, query: str, k: int = 5, filters: Dict = None) -> List[Tuple[Dict, float]]:
-        """Enhanced search with filtering capabilities"""
         if not self.index or not self.documents:
             return []
-        
         try:
-            # Generate query embedding
             response = self.cohere_client.embed(
                 texts=[query],
                 model="embed-english-v3.0",
                 input_type="search_query"
             )
             query_embedding = np.array(response.embeddings)
-            
-            # Search with more results to allow for filtering
             search_k = min(k * 3, len(self.documents))
             distances, indices = self.index.search(query_embedding.astype('float32'), search_k)
-            
             results = []
             for i, idx in enumerate(indices[0]):
                 if idx < len(self.documents):
                     doc = self.documents[idx]
-                    
-                    # Apply filters if provided
                     if filters:
                         skip = False
                         for filter_key, filter_value in filters.items():
@@ -444,14 +368,10 @@ class EnhancedFinancialDataProcessor:
                                 break
                         if skip:
                             continue
-                    
                     results.append((doc, distances[0][i]))
-                    
-                    if len(results) >= k:  # Stop when we have enough results
+                    if len(results) >= k:
                         break
-            
             return results
-            
         except Exception as e:
             st.error(f"Error during search: {str(e)}")
             return []
@@ -462,11 +382,15 @@ class EnhancedFinancialAdvisor:
         self.data_processor = EnhancedFinancialDataProcessor(cohere_api_key)
         self.conversation_history = []
     
-    def _call_groq_with_context(self, prompt: str, context: Dict, model: str = "meta-llama/llama-4-scout-17b-16e-instruct") -> str:
-        """Enhanced Groq call with context awareness"""
+    def _call_groq_with_context(self, prompt: str, context: Dict, model: str = "llama3-8b-8192") -> str:
         try:
-            # Build system message with context
-            system_message = f"""You are FinWise AI, an advanced financial advisor specializing in global markets and custom financial analysis.
+            system_message = f"""You are FinWise AI, a sarcastic and brutally honest financial teacher who doesn’t sugarcoat things. You’re here to educate users like they’re in a tough finance class, throwing in sharp wit and zero patience for dumb questions. Your job is to:
+1. Teach financial concepts with clear explanations, analogies, and examples.
+2. Answer questions directly, but don’t hold back on pointing out obvious mistakes or gaps in the user’s thinking.
+3. Use the latest analysis report to ground your answers when relevant (matches the topic and is fresh within 24 hours). If it’s not, tell the user why their request is pointless.
+4. Use recent conversation history to stay on track, but don’t bore them with old stuff.
+5. Only give investment advice if the analysis report is relevant. If not, explain why.
+6. Keep responses under 600 words, structured with headings for clarity.
 
 Current Analysis Context:
 - Topic: {context.get('topic', 'General Finance')}
@@ -474,150 +398,191 @@ Current Analysis Context:
 - Time Period: {context.get('date_range', 'Recent')}
 - Data Sources: {context.get('data_sources', 'News and Market Data')}
 
-Provide accurate, contextual financial advice based on the given information. Always:
-1. Consider the geographic and temporal context
-2. Mention relevant risks and limitations
-3. Provide actionable insights when possible
-4. Remind users this is not personalized financial advice
-5. Be specific about the data timeframe and sources used
+Analysis Report Summary:
+{self._get_report_summary(context.get('topic', ''))}
 
-Format your response professionally with clear sections when appropriate."""
+Conversation History (Last 3 Exchanges):
+{self._get_conversation_summary(context.get('topic', ''))}
 
+Be rude, but professional. Call out nonsense, use sarcasm, and make it educational. Always end with a disclaimer that this isn’t personalized financial advice."""
             chat_completion = self.groq_client.chat.completions.create(
                 messages=[
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": prompt}
                 ],
                 model=model,
-                temperature=0.3,
+                temperature=0.5,
                 max_tokens=1500
             )
             return chat_completion.choices[0].message.content
-            
         except Exception as e:
             return f"Error generating response: {str(e)}"
     
-    def analyze_custom_topic_sentiment(self, news_data: List[Dict], topic: str, country: str = None) -> str:
-        """Analyze sentiment for custom topics and regions"""
-        if not news_data:
-            return "No news data available for sentiment analysis."
+    def _get_conversation_summary(self, topic: str) -> str:
+        """Summarize last 3 relevant conversations for context."""
+        if not self.conversation_history:
+            return "No prior conversations. You’re starting from scratch, genius."
+        relevant_history = [
+            chat for chat in self.conversation_history[-3:]
+            if topic.lower() in chat['query'].lower() or (chat['filters'] and topic.lower() in str(chat['filters']).lower())
+        ]
+        if not relevant_history:
+            return "No relevant chats recently. Try asking something that makes sense with your analysis."
+        summary = []
+        for i, chat in enumerate(relevant_history, 1):
+            summary.append(f"Chat {i}: You asked: '{chat['query'][:50]}{'...' if len(chat['query']) > 50 else ''}'. I said: '{chat['response'][:100]}{'...' if len(chat['response']) > 100 else ''}'")
+        return "\n".join(summary)
+    
+    def _get_report_summary(self, topic: str) -> str:
+        """Summarize the latest analysis report if relevant."""
+        if 'analysis_results' not in st.session_state or 'processed_data' not in st.session_state:
+            return "No analysis report available. Run an analysis first, genius."
+        analysis = st.session_state.analysis_results
+        processed_data = st.session_state.processed_data
+        analysis_topic = analysis['metadata'].get('topic', '').lower()
+        fetch_time = datetime.fromisoformat(analysis['metadata'].get('fetch_timestamp', '1970-01-01'))
+        is_recent = (datetime.now() - fetch_time).total_seconds() < 24 * 3600
+        is_topic_match = topic.lower() in analysis_topic or analysis_topic in topic.lower()
+        if not (is_recent and is_topic_match):
+            return f"No relevant report. Current report on '{analysis_topic}' is {'outdated' if not is_recent else 'off-topic'}. Run a new analysis."
         
+        summary = [
+            f"Topic: {analysis['metadata']['topic']}",
+            f"Region: {analysis['metadata'].get('country', 'Global')}",
+            f"Period: {analysis['metadata']['date_range']}",
+            f"News Articles: {analysis['news_count']}",
+            f"Market Data Points: {analysis['market_count']}"
+        ]
+        if 'sentiment_analysis' in analysis:
+            summary.append(f"Sentiment: {analysis['sentiment_analysis'][:100]}{'...' if len(analysis['sentiment_analysis']) > 100 else ''}")
+        if 'market_analysis' in analysis:
+            summary.append(f"Market Trends: {analysis['market_analysis'][:100]}{'...' if len(analysis['market_analysis']) > 100 else ''}")
+        if processed_data.get('news_data'):
+            top_headlines = [f"- {article['title'][:80]}{'...' if len(article['title']) > 80 else ''}" 
+                            for article in processed_data['news_data'][:3]]
+            summary.append("Top Headlines:\n" + "\n".join(top_headlines))
+        return "\n".join(summary)
+    
+    def analyze_custom_topic_sentiment(self, news_data: List[Dict], topic: str, country: str = None) -> str:
+        if not news_data:
+            return "No news data available. Did you even run an analysis, or are you just wasting my time?"
         news_content = "\n".join([
             f"- {article['title']}: {article['description'][:200]}..." 
             for article in news_data[:15]
         ])
-        
         geographic_context = f" in {country}" if country else " globally"
-        
         prompt = f"""
-        Analyze the sentiment around the topic "{topic}"{geographic_context} based on recent news:
+        Analyze the sentiment around "{topic}"{geographic_context} based on this news:
         
         {news_content}
         
-        Provide a comprehensive analysis covering:
-        1. Overall sentiment (bullish/bearish/neutral) regarding {topic}
-        2. Key themes and developments in {topic}
-        3. Geographic-specific considerations{' for ' + country if country else ''}
-        4. Potential market implications for {topic}-related investments
-        5. Risk factors and opportunities
-        6. Recommended monitoring points
+        As a snarky financial teacher, do this:
+        1. Give the overall sentiment (bullish/bearish/neutral) and explain it like I’m a rookie who barely gets it.
+        2. List key themes and developments, with examples to hammer it into my head.
+        3. Highlight {country if country else 'global'} factors, because apparently I need to know this.
+        4. Spell out market implications for {topic}-related investments, since I can’t figure it out myself.
+        5. Point out risks and opportunities, because I’d probably miss them.
+        6. Tell me what to watch next, so I don’t screw this up.
         
-        Keep response under 600 words and be specific to the {topic} sector/theme.
+        Keep it under 600 words. Educate me, don’t coddle me.
         """
-        
         context = {
             'topic': topic,
             'country': country,
             'data_sources': 'Recent News Articles'
         }
-        
         return self._call_groq_with_context(prompt, context)
     
     def generate_custom_market_analysis(self, market_data: Dict, context: Dict) -> str:
-        """Generate market analysis for custom regions and topics"""
         if not market_data:
-            return "No market data available for analysis."
-        
-        # Prepare market data summary
+            return "No market data. Seriously, did you forget to add stock symbols or what?"
         market_summary = []
         for symbol, data in market_data.items():
             if data and isinstance(data, dict):
-                # Extract recent performance data
                 time_series_key = next((k for k in data.keys() if 'Time Series' in k), None)
                 if time_series_key and time_series_key in data:
                     time_series = data[time_series_key]
                     recent_dates = list(time_series.keys())[:5]
-                    
                     if recent_dates:
                         latest_data = time_series[recent_dates[0]]
                         oldest_data = time_series[recent_dates[-1]]
-                        
                         try:
                             latest_close = float(latest_data.get('4. close', latest_data.get('close', 0)))
                             oldest_close = float(oldest_data.get('4. close', oldest_data.get('close', 0)))
-                            
                             if oldest_close > 0:
                                 change_pct = ((latest_close - oldest_close) / oldest_close) * 100
                                 market_summary.append(f"{symbol}: ${latest_close:.2f} ({change_pct:+.2f}% over 5 days)")
                         except (ValueError, TypeError):
                             market_summary.append(f"{symbol}: Data available but incomplete")
-        
         market_text = "\n".join(market_summary) if market_summary else "Market data processing incomplete"
-        
         region = context.get('region', 'Global')
         topic = context.get('topic', 'Market Analysis')
-        
         prompt = f"""
-        Analyze the following market data for {region} markets related to {topic}:
+        Analyze this market data for {region} markets on {topic}:
         
         {market_text}
         
-        Provide comprehensive analysis including:
-        1. Regional market performance overview
-        2. {topic}-specific market trends
-        3. Comparative analysis across instruments
-        4. Geographic market considerations for {region}
-        5. Technical and fundamental insights
-        6. Risk assessment and opportunities
-        7. Investment recommendations for {region} exposure
+        You’re a financial teacher with zero patience. Do this:
+        1. Give a regional performance overview, like I don’t know what a stock chart is.
+        2. Explain {topic}-specific trends, with analogies so I get it.
+        3. Compare instruments, because I’m too lazy to do it myself.
+        4. Highlight {region} market factors, since I apparently need a geography lesson.
+        5. Provide technical and fundamental insights, or I’ll miss the obvious.
+        6. List risks and opportunities, because I’d probably tank my portfolio.
+        7. Suggest next steps for {region} exposure, if I’m not totally hopeless.
         
-        Consider regional economic factors and {topic} sector dynamics.
+        Educate me in under 600 words. Don’t waste my time.
         """
-        
         return self._call_groq_with_context(prompt, context)
     
     def answer_custom_financial_query(self, query: str, filters: Dict = None) -> str:
-        """Answer queries with custom filtering and context"""
-        # Search for relevant documents with filters
         similar_docs = self.data_processor.search_enhanced_similar(query, k=5, filters=filters)
-        
         if similar_docs:
             context_docs = []
             for doc, score in similar_docs:
                 relevance = "High" if score < 0.5 else "Medium" if score < 1.0 else "Low"
                 context_docs.append(f"[{relevance} Relevance] {doc['content']}")
-            
             context_text = "\n\n".join(context_docs)
             source_info = f"Based on {len(similar_docs)} relevant documents from recent data"
         else:
             context_text = "No specific recent data available for this query."
-            source_info = "Using general financial knowledge"
+            source_info = "Using general financial knowledge and analysis report"
+        
+        # Check analysis relevance for advice and report usage
+        advice_eligible = False
+        advice_reason = ""
+        report_summary = self._get_report_summary(filters.get('topic', query) if filters else query)
+        if 'analysis_results' in st.session_state:
+            analysis = st.session_state.analysis_results
+            analysis_topic = analysis['metadata'].get('topic', '').lower()
+            fetch_time = datetime.fromisoformat(analysis['metadata'].get('fetch_timestamp', '1970-01-01'))
+            is_recent = (datetime.now() - fetch_time).total_seconds() < 24 * 3600
+            is_topic_match = query.lower() in analysis_topic or analysis_topic in query.lower()
+            if is_recent and is_topic_match and analysis.get('news_count', 0) > 0:
+                advice_eligible = True
+            else:
+                advice_reason = f"Analysis is {'too old' if not is_recent else 'off-topic'} or lacks data. Run a relevant analysis first, genius."
         
         prompt = f"""
         Context from recent financial data:
         {context_text}
         
+        Analysis Report Summary:
+        {report_summary}
+        
         User Question: {query}
         
-        Based on the provided context and general financial knowledge, provide a comprehensive answer.
-        Data Source: {source_info}
+        You’re a rude financial teacher. Answer like I’m a student who didn’t do the reading:
+        1. **Direct Answer**: Answer the question bluntly. Call out any dumb assumptions.
+        2. **Financial Lesson**: Explain a related financial concept with an analogy and example.
+        3. **Report Insights**: Summarize key findings from the analysis report if relevant.
+        4. **Evidence**: Use the report or similar data to back it up. Don’t make stuff up.
+        5. **Market Context**: Tie it to broader markets, since I clearly don’t get it.
+        6. **Risks**: List what could go wrong, because I’d probably ignore them.
+        7. **Advice (if relevant)**: {'Give actionable advice based on the analysis report.' if advice_eligible else f'No advice because: {advice_reason}'}
         
-        Structure your response with:
-        1. Direct answer to the question
-        2. Supporting evidence from the data
-        3. Broader market context
-        4. Risk considerations
-        5. Actionable recommendations (if applicable)
+        Data Source: {source_info}
+        Keep it under 600 words. Educate me, don’t bore me.
         """
         
         analysis_context = {
@@ -628,7 +593,6 @@ Format your response professionally with clear sections when appropriate."""
         
         response = self._call_groq_with_context(prompt, analysis_context)
         
-        # Store conversation for context
         self.conversation_history.append({
             'query': query,
             'response': response,
@@ -652,8 +616,6 @@ class EnhancedFinWiseDataPipeline:
                          to_date: str = None,
                          stock_symbols: List[str] = None,
                          region: str = "US") -> Dict:
-        """Fetch data based on custom user parameters"""
-        
         results = {
             'news_data': [],
             'market_data': {},
@@ -667,8 +629,6 @@ class EnhancedFinWiseDataPipeline:
                 'fetch_timestamp': datetime.now().isoformat()
             }
         }
-        
-        # Fetch custom news data
         with st.spinner(f"Fetching news for '{topic}'..."):
             news_data = self.news_client.get_custom_news(
                 topic=topic,
@@ -677,86 +637,121 @@ class EnhancedFinWiseDataPipeline:
                 to_date=to_date
             )
             results['news_data'] = news_data
-        
-        # Process news data
         if news_data:
             results['processed_news'] = self.data_processor.process_custom_news_data(
                 news_data, topic, country
             )
-        
-        # Fetch market data if symbols provided
         if stock_symbols:
             with st.spinner(f"Fetching market data for {len(stock_symbols)} symbols..."):
                 market_data = self.av_client.get_custom_market_data(stock_symbols, region=region)
                 results['market_data'] = market_data
-            
-            # Process market data
             if market_data:
                 market_context = {'region': region, 'topic': topic}
                 results['processed_market'] = self.data_processor.process_enhanced_market_data(
                     market_data, market_context
                 )
-        
         return results
     
     def build_custom_analysis(self, custom_data: Dict) -> Dict:
-        """Build comprehensive analysis from custom data"""
         all_documents = []
-        
-        # Combine processed data
         if custom_data['processed_news']:
             all_documents.extend(custom_data['processed_news'])
         if custom_data['processed_market']:
             all_documents.extend(custom_data['processed_market'])
-        
-        # Build vector index
         if all_documents:
             self.data_processor.build_enhanced_vector_index(all_documents)
-        
-        # Generate analysis insights
         analysis = {
             'total_documents': len(all_documents),
             'news_count': len(custom_data['processed_news']),
             'market_count': len(custom_data['processed_market']),
             'metadata': custom_data['metadata']
         }
-        
-        # Generate sentiment analysis for news
         if custom_data['news_data']:
             analysis['sentiment_analysis'] = self.advisor.analyze_custom_topic_sentiment(
                 custom_data['news_data'], 
                 custom_data['metadata']['topic'],
                 custom_data['metadata']['country']
             )
-        
-        # Generate market analysis
         if custom_data['market_data']:
             analysis['market_analysis'] = self.advisor.generate_custom_market_analysis(
                 custom_data['market_data'],
                 custom_data['metadata']
             )
-        
         return analysis
 
-# Enhanced Streamlit UI
+def generate_pdf_report(analysis_results, processed_data):
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+    story.append(Paragraph("FinWise AI Analysis Report", styles['Title']))
+    story.append(Spacer(1, 12))
+    metadata = analysis_results['metadata']
+    story.append(Paragraph(f"Topic: {metadata['topic']}", styles['Heading2']))
+    story.append(Paragraph(f"Region: {metadata.get('country', 'Global')}", styles['Normal']))
+    story.append(Paragraph(f"Time Period: {metadata['date_range']}", styles['Normal']))
+    story.append(Paragraph(f"Generated: {datetime.fromisoformat(metadata['fetch_timestamp']).strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Summary Metrics", styles['Heading2']))
+    metrics_data = [
+        ["Metric", "Value"],
+        ["News Articles", str(analysis_results['news_count'])],
+        ["Market Data Points", str(analysis_results['market_count'])],
+        ["Total Documents", str(analysis_results['total_documents'])],
+        ["Sources", str(len(set([article.get('source', {}).get('name', 'Unknown') 
+                                for article in processed_data['news_data']])))]
+    ]
+    metrics_table = Table(metrics_data)
+    metrics_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    story.append(metrics_table)
+    story.append(Spacer(1, 12))
+    if 'sentiment_analysis' in analysis_results:
+        story.append(Paragraph("News Sentiment Analysis", styles['Heading2']))
+        story.append(Paragraph(analysis_results['sentiment_analysis'].replace('\n', '<br/>'), 
+                             styles['Normal']))
+        story.append(Spacer(1, 12))
+    if 'market_analysis' in analysis_results:
+        story.append(Paragraph("Market Analysis", styles['Heading2']))
+        story.append(Paragraph(analysis_results['market_analysis'].replace('\n', '<br/>'), 
+                             styles['Normal']))
+        story.append(Spacer(1, 12))
+    if processed_data['news_data']:
+        story.append(Paragraph("Latest Headlines", styles['Heading2']))
+        for i, article in enumerate(processed_data['news_data'][:5]):
+            headline = f"{i+1}. {article['title'][:100]}{'...' if len(article['title']) > 100 else ''}"
+            source = article.get('source', {}).get('name', 'Unknown')
+            published = article.get('publishedAt', 'Unknown')
+            story.append(Paragraph(headline, styles['Normal']))
+            story.append(Paragraph(f"Source: {source} | Published: {published}", 
+                                 styles['Italic']))
+            story.append(Spacer(1, 6))
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
 def create_enhanced_streamlit_app():
     st.set_page_config(
         page_title="FinWise AI - Financial Intelligence",
         page_icon="📈",
         layout="wide"
     )
-    
     st.title("FinWise AI - Financial Intelligence System")
     st.markdown("*Analyze any topic, anywhere, anytime with AI-powered insights*")
     st.markdown("---")
     
-    # Sidebar for configuration
     with st.sidebar:
         st.header("Configuration")
-        # Clear Cache & Reset - Ultra-Safe Version
         if st.button("Clear Data", help="Clear analysis data only"):
             try:
-                # Clear only analysis-related data
                 analysis_keys = ['analysis_results', 'processed_data', 'pipeline', 'chat_history']
                 for key in analysis_keys:
                     if key in st.session_state:
@@ -764,16 +759,12 @@ def create_enhanced_streamlit_app():
                 st.success("Analysis data cleared!")
             except Exception as e:
                 st.error(f"Error: {str(e)}")
-        # API Keys Configuration
         st.subheader("API Configuration")
         news_api_key = st.text_input("News API Key", type="password", help="Get from newsapi.org")
         alpha_vantage_key = st.text_input("Alpha Vantage Key", type="password", help="Get from alphavantage.co")
         cohere_api_key = st.text_input("Cohere API Key", type="password", help="Get from cohere.ai")
         groq_api_key = st.text_input("Groq API Key", type="password", help="Get from groq.com")
-        
         st.markdown("---")
-        
-        # Quick Analysis Presets
         st.subheader("Quick Analysis Presets")
         preset_options = {
             "Technology Trends - US": {"topic": "artificial intelligence technology trends", "country": "United States", "symbols": ["AAPL", "GOOGL", "MSFT", "NVDA"]},
@@ -782,18 +773,13 @@ def create_enhanced_streamlit_app():
             "Cryptocurrency - Asia": {"topic": "cryptocurrency bitcoin regulation", "country": "Japan", "symbols": ["GBTC", "ETHE"]},
             "Climate Change Impact": {"topic": "climate change environmental policy", "country": "Canada", "symbols": ["ESG", "ICLN"]}
         }
-        
         selected_preset = st.selectbox("Choose Preset:", ["Custom Analysis"] + list(preset_options.keys()))
         if selected_preset != "Custom Analysis":
             preset = preset_options[selected_preset]
             st.session_state.update(preset)
-        
         st.markdown("---")
-        
-        # Data Export Options
         st.subheader("Export Options")
         export_format = st.selectbox("Export Format:", ["JSON", "CSV", "PDF Report"])
-        
         if st.button("Export Analysis Data"):
             if 'analysis_results' in st.session_state:
                 if export_format == "JSON":
@@ -811,18 +797,30 @@ def create_enhanced_streamlit_app():
                         file_name=f"finwise_news_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                         mime="text/csv"
                     )
+                elif export_format == "PDF Report" and 'processed_data' in st.session_state:
+                    try:
+                        pdf_buffer = generate_pdf_report(
+                            st.session_state.analysis_results,
+                            st.session_state.processed_data
+                        )
+                        st.download_button(
+                            "Download PDF Report",
+                            data=pdf_buffer,
+                            file_name=f"finwise_analysis_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                            mime="application/pdf"
+                        )
+                    except Exception as e:
+                        st.error(f"Failed to generate PDF: {str(e)}")
+                else:
+                    st.warning("No data available for PDF export. Run an analysis first!")
             else:
                 st.warning("No analysis data to export. Run an analysis first!")
     
-    # Main Content Area
     col1, col2 = st.columns([2, 1])
     
     with col1:
         st.header("Custom Analysis Configuration")
-        
-        # Topic and Geographic Configuration
         topic_col, country_col = st.columns(2)
-        
         with topic_col:
             analysis_topic = st.text_input(
                 "Analysis Topic/Theme",
@@ -830,7 +828,6 @@ def create_enhanced_streamlit_app():
                 placeholder="e.g., artificial intelligence, renewable energy, healthcare innovation",
                 help="Enter any topic, sector, or theme you want to analyze"
             )
-        
         with country_col:
             countries = ['Global'] + list(EnhancedNewsAPIClient('').country_codes.keys())
             selected_country = st.selectbox(
@@ -838,17 +835,13 @@ def create_enhanced_streamlit_app():
                 countries,
                 index=countries.index(st.session_state.get('country', 'Global')) if st.session_state.get('country') in countries else 0
             )
-        
-        # Date Range Configuration
         st.subheader("Time Period")
         date_col1, date_col2, date_col3 = st.columns(3)
-        
         with date_col1:
             date_preset = st.selectbox(
                 "Quick Date Range",
                 ["Custom", "Last 7 Days", "Last 30 Days", "Last 3 Months"]
             )
-        
         if date_preset != "Custom":
             if date_preset == "Last 7 Days":
                 from_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
@@ -864,12 +857,8 @@ def create_enhanced_streamlit_app():
                 from_date = st.date_input("From Date", value=datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
             with date_col3:
                 to_date = st.date_input("To Date", value=datetime.now()).strftime('%Y-%m-%d')
-        
-        # Market Data Configuration
         st.subheader("Market Data Configuration")
-        
         market_col1, market_col2 = st.columns(2)
-        
         with market_col1:
             stock_symbols_input = st.text_input(
                 "Stock Symbols (comma-separated)",
@@ -877,55 +866,39 @@ def create_enhanced_streamlit_app():
                 placeholder="e.g., AAPL, GOOGL, TSLA, MSFT",
                 help="Enter stock symbols separated by commas"
             )
-            
             stock_symbols = [symbol.strip().upper() for symbol in stock_symbols_input.split(',') if symbol.strip()] if stock_symbols_input else []
-        
         with market_col2:
             market_region = st.selectbox(
                 "Market Region",
                 ["US", "Europe", "Asia", "Emerging", "Global"]
             )
-        
-        # Advanced Options
         with st.expander("Advanced Options"):
             adv_col1, adv_col2 = st.columns(2)
-            
             with adv_col1:
                 news_language = st.selectbox("News Language", ["en", "es", "fr", "de", "it", "pt"])
                 sort_by = st.selectbox("Sort News By", ["relevancy", "popularity", "publishedAt"])
-            
             with adv_col2:
                 max_articles = st.slider("Max Articles", 20, 100, 50)
                 analysis_depth = st.selectbox("Analysis Depth", ["Standard", "Deep", "Quick"])
-        
-        # Analysis Execution
         st.markdown("---")
-        
         if st.button("Run Enhanced Analysis", type="primary", use_container_width=True):
             if not all([news_api_key, alpha_vantage_key, cohere_api_key, groq_api_key]):
                 st.error("Please provide all required API keys in the sidebar!")
             elif not analysis_topic:
                 st.error("Please enter an analysis topic!")
             else:
-                # Initialize the pipeline
                 config = APIConfig(
                     news_api_key=news_api_key,
                     alpha_vantage_key=alpha_vantage_key,
                     cohere_api_key=cohere_api_key,
                     groq_api_key=groq_api_key
                 )
-                
                 pipeline = EnhancedFinWiseDataPipeline(config, groq_api_key)
-                
-                # Show progress
                 progress_bar = st.progress(0)
                 status_text = st.empty()
-                
                 try:
-                    # Fetch custom data
                     status_text.text("Fetching custom data...")
                     progress_bar.progress(20)
-                    
                     custom_data = pipeline.fetch_custom_data(
                         topic=analysis_topic,
                         country=selected_country if selected_country != 'Global' else None,
@@ -934,25 +907,16 @@ def create_enhanced_streamlit_app():
                         stock_symbols=stock_symbols,
                         region=market_region
                     )
-                    
                     progress_bar.progress(50)
                     status_text.text("Building analysis...")
-                    
-                    # Build analysis
                     analysis_results = pipeline.build_custom_analysis(custom_data)
-                    
                     progress_bar.progress(80)
                     status_text.text("Analysis complete!")
-                    
-                    # Store results in session state
                     st.session_state.analysis_results = analysis_results
                     st.session_state.processed_data = custom_data
                     st.session_state.pipeline = pipeline
-                    
                     progress_bar.progress(100)
                     status_text.text("Ready to explore results!")
-                    
-                    # Display success message
                     st.success(f"""
                     **Analysis Complete!**
                     - Processed {analysis_results['news_count']} news articles
@@ -960,18 +924,14 @@ def create_enhanced_streamlit_app():
                     - Topic: {analysis_topic}
                     - Region: {selected_country}
                     """)
-                    
                 except Exception as e:
                     st.error(f"Analysis failed: {str(e)}")
                     st.error("Please check your API keys and try again.")
     
     with col2:
         st.header("Quick Stats")
-        
         if 'analysis_results' in st.session_state:
             results = st.session_state.analysis_results
-            
-            # Display metrics
             col_a, col_b = st.columns(2)
             with col_a:
                 st.metric("News Articles", results['news_count'])
@@ -979,8 +939,6 @@ def create_enhanced_streamlit_app():
             with col_b:
                 st.metric("Total Documents", results['total_documents'])
                 st.metric("Last Updated", datetime.fromisoformat(results['metadata']['fetch_timestamp']).strftime('%H:%M'))
-            
-            # Topic and Region Info
             st.info(f"""
             **Current Analysis:**
             - **Topic:** {results['metadata']['topic']}
@@ -989,37 +947,26 @@ def create_enhanced_streamlit_app():
             """)
         else:
             st.info("Configure and run your first analysis to see results here!")
-        
-        # Market Status Widget
         st.subheader("Market Status")
         if st.button("Refresh Market Status"):
             current_time = datetime.now()
             market_hours = 9.5 <= current_time.hour <= 16 and current_time.weekday() < 5
-            
             if market_hours:
                 st.success("Markets are OPEN")
             else:
                 st.warning("Markets are CLOSED")
-            
             st.write(f"Current time: {current_time.strftime('%H:%M %Z')}")
     
-    # Results Display Section - TABS MOVED OUTSIDE COLUMNS
     if 'analysis_results' in st.session_state and 'processed_data' in st.session_state:
         st.markdown("---")
         st.header("Analysis Results")
-        
-        # Create tabs for different views
         tab1, tab2, tab3, tab4, tab5 = st.tabs([" Overview", " News Analysis", " Market Analysis", " AI Chat", " Visualizations"])
         
         with tab1:
             st.subheader("Analysis Overview")
-            
             results = st.session_state.analysis_results
             data = st.session_state.processed_data
-            
-            # Summary metrics
             metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
-            
             with metrics_col1:
                 st.metric("News Sources", len(set([
                     article.get('source', {}).get('name', 'Unknown') 
@@ -1032,8 +979,6 @@ def create_enhanced_streamlit_app():
                 st.metric("Geographic Scope", results['metadata'].get('country', 'Global'))
             with metrics_col4:
                 st.metric("Analysis Timeframe", results['metadata']['date_range'])
-            
-            # Key highlights
             if data['news_data']:
                 st.subheader(" Latest Headlines")
                 for i, article in enumerate(data['news_data'][:5]):
@@ -1046,38 +991,28 @@ def create_enhanced_streamlit_app():
         
         with tab2:
             st.subheader(" News Sentiment Analysis")
-            
             if 'sentiment_analysis' in st.session_state.analysis_results:
                 st.markdown(st.session_state.analysis_results['sentiment_analysis'])
             else:
                 st.info("No sentiment analysis available. Make sure news data was fetched successfully.")
-            
-            # News data table
             if st.session_state.processed_data['news_data']:
                 st.subheader("News Articles Data")
-                
                 news_df = pd.DataFrame([{
                     'Title': article['title'][:100] + '...' if len(article['title']) > 100 else article['title'],
                     'Source': article.get('source', {}).get('name', 'Unknown'),
                     'Published': article.get('publishedAt', 'Unknown'),
                     'URL': article.get('url', '')
                 } for article in st.session_state.processed_data['news_data']])
-                
                 st.dataframe(news_df, use_container_width=True)
         
         with tab3:
             st.subheader(" Market Data Analysis")
-            
             if 'market_analysis' in st.session_state.analysis_results:
                 st.markdown(st.session_state.analysis_results['market_analysis'])
             else:
                 st.info("No market analysis available. Add stock symbols to your analysis.")
-            
-            # Market data visualization and table
             if st.session_state.processed_data['market_data']:
                 st.subheader(" Market Data Overview")
-                
-                # Create market data summary
                 market_summary = []
                 for symbol, data in st.session_state.processed_data['market_data'].items():
                     if data and isinstance(data, dict):
@@ -1086,11 +1021,9 @@ def create_enhanced_streamlit_app():
                             time_series = data[time_series_key]
                             recent_date = list(time_series.keys())[0]
                             recent_data = time_series[recent_date]
-                            
                             try:
                                 close_price = float(recent_data.get('4. close', recent_data.get('close', 0)))
                                 volume = recent_data.get('5. volume', 'N/A')
-                                
                                 market_summary.append({
                                     'Symbol': symbol,
                                     'Latest Close': f"${close_price:.2f}",
@@ -1099,87 +1032,68 @@ def create_enhanced_streamlit_app():
                                 })
                             except (ValueError, TypeError):
                                 continue
-                
                 if market_summary:
                     market_df = pd.DataFrame(market_summary)
                     st.dataframe(market_df, use_container_width=True)
         
         with tab4:
             st.subheader(" AI Financial Assistant")
+            st.warning("Beware: I'm a snarky financial teacher who doesn’t hold hands. I use the latest analysis report to answer, so make sure it’s relevant!")
             st.markdown("Ask me anything about your analysis or financial markets!")
-            
-            # Initialize chat history if not exists
             if 'chat_history' not in st.session_state:
                 st.session_state.chat_history = []
-            
-            # Display chat history
             if st.session_state.chat_history:
                 st.subheader(" Chat History")
-                for i, chat in enumerate(st.session_state.chat_history):
+                for i, chat in enumerate(reversed(st.session_state.chat_history)):
                     with st.container():
-                        st.markdown(f"**You:** {chat['question']}")
+                        st.markdown(f"**You ({chat['timestamp']}):** {chat['question']}")
                         st.markdown(f"**FinWise AI:** {chat['answer']}")
                         st.markdown("---")
             else:
-                st.info("Start a conversation by asking a question below!")
+                st.info("Start a conversation by asking a question below! Don’t waste my time with nonsense.")
         
         with tab5:
             st.subheader(" Data Visualizations")
-            
-            # Market data visualizations
             if st.session_state.processed_data['market_data']:
                 st.subheader(" Market Performance Charts")
-                
                 for symbol, data in st.session_state.processed_data['market_data'].items():
                     if data and isinstance(data, dict):
                         time_series_key = next((k for k in data.keys() if 'Time Series' in k), None)
                         if time_series_key and time_series_key in data:
                             time_series = data[time_series_key]
-                            
-                            # Prepare data for plotting
                             dates = []
                             closes = []
                             volumes = []
-                            
-                            for date, values in list(time_series.items())[:30]:  # Last 30 days
+                            for date, values in list(time_series.items())[:30]:
                                 try:
                                     close_price = float(values.get('4. close', values.get('close', 0)))
                                     volume = int(values.get('5. volume', 0))
-                                    
                                     dates.append(pd.to_datetime(date))
                                     closes.append(close_price)
                                     volumes.append(volume)
                                 except (ValueError, TypeError):
                                     continue
-                            
                             if dates and closes:
-                                # Create price chart
                                 fig = go.Figure()
                                 fig.add_trace(go.Scatter(
-                                    x=dates[::-1],  # Reverse to show chronological order
+                                    x=dates[::-1],
                                     y=closes[::-1],
                                     mode='lines+markers',
                                     name=f'{symbol} Price',
                                     line=dict(color='blue', width=2)
                                 ))
-                                
                                 fig.update_layout(
                                     title=f'{symbol} - Price Movement',
                                     xaxis_title='Date',
                                     yaxis_title='Price ($)',
                                     hovermode='x unified'
                                 )
-                                
                                 st.plotly_chart(fig, use_container_width=True, key=f"price_chart_{symbol}")
-            
-            # News source distribution
             if st.session_state.processed_data['news_data']:
                 st.subheader("📊 News Sources Distribution")
-                
                 sources = [article.get('source', {}).get('name', 'Unknown')
                           for article in st.session_state.processed_data['news_data']]
                 source_counts = pd.Series(sources).value_counts().head(10)
-                
                 fig = px.bar(
                     x=source_counts.values,
                     y=source_counts.index,
@@ -1187,14 +1101,9 @@ def create_enhanced_streamlit_app():
                     title="Top News Sources",
                     labels={'x': 'Number of Articles', 'y': 'Source'}
                 )
-                
                 st.plotly_chart(fig, use_container_width=True, key="news_sources_chart")
-            
-            # Timeline visualization
             if st.session_state.processed_data['news_data']:
                 st.subheader("News Timeline")
-                
-                # Create timeline data
                 news_dates = []
                 for article in st.session_state.processed_data['news_data']:
                     if article.get('publishedAt'):
@@ -1202,87 +1111,59 @@ def create_enhanced_streamlit_app():
                             news_dates.append(pd.to_datetime(article['publishedAt']).date())
                         except:
                             continue
-                
                 if news_dates:
                     date_counts = pd.Series(news_dates).value_counts().sort_index()
-                    
                     fig = px.line(
                         x=date_counts.index,
                         y=date_counts.values,
                         title="News Articles Over Time",
                         labels={'x': 'Date', 'y': 'Number of Articles'}
                     )
-                    
                     st.plotly_chart(fig, use_container_width=True, key="news_timeline_chart")
     
-    # ===== CHAT INPUT - MUST BE OUTSIDE TABS =====
     if 'analysis_results' in st.session_state and 'processed_data' in st.session_state:
         st.markdown("---")
         st.subheader("Ask FinWise AI")
-        
-        # Initialize chat history and processing flag
         if 'chat_history' not in st.session_state:
             st.session_state.chat_history = []
         if 'processing_query' not in st.session_state:
             st.session_state.processing_query = False
-        
-        # Chat input (outside all containers)
-        user_question = st.chat_input("Ask a financial question about your analysis...")
-        
-        # Process new question only if not currently processing and question is new
+        user_question = st.chat_input("Ask a financial question about your analysis... (I’m not here to coddle you!)")
         if (user_question and 'pipeline' in st.session_state and 
             not st.session_state.processing_query and
             (not st.session_state.chat_history or 
              st.session_state.chat_history[-1]['question'] != user_question)):
-            
-            # Set processing flag to prevent multiple processing
             st.session_state.processing_query = True
-            
-            with st.spinner("Analyzing your question..."):
+            with st.spinner("Analyzing your question... Don’t expect me to go easy on you!"):
                 try:
-                    # Create filters based on current analysis
                     filters = {
                         'topic': st.session_state.analysis_results['metadata']['topic'],
                         'country': st.session_state.analysis_results['metadata'].get('country')
                     }
-                    
-                    # Remove None values from filters
                     filters = {k: v for k, v in filters.items() if v is not None}
-                    
                     answer = st.session_state.pipeline.advisor.answer_custom_financial_query(
                         user_question, filters
                     )
-                    
-                    # Store in chat history
                     st.session_state.chat_history.append({
                         'question': user_question,
                         'answer': answer,
                         'timestamp': datetime.now().strftime('%H:%M:%S')
                     })
-                    
-                    # Show success message
-                    st.success("Response generated! Check the AI Chat tab to see the conversation.")
-                    
+                    st.success("Response generated! Check the AI Chat tab to see me tear into your question.")
                 except Exception as e:
                     st.error(f"Error processing question: {str(e)}")
-                
                 finally:
-                    # Reset processing flag
                     st.session_state.processing_query = False
-        
         elif user_question and not st.session_state.get('pipeline'):
-            st.warning("Please run an analysis first to enable the AI assistant!")
-        
-        # Display recent chat without triggering rerun
+            st.warning("Run an analysis first to enable the AI assistant! Don’t waste my time!")
         if st.session_state.chat_history:
             with st.expander("Recent Conversation", expanded=True):
                 latest_chat = st.session_state.chat_history[-1]
-                st.markdown(f"**You:** {latest_chat['question']}")
+                st.markdown(f"**You ({latest_chat['timestamp']}):** {latest_chat['question']}")
                 st.markdown(f"**FinWise AI:** {latest_chat['answer']}")
                 if len(st.session_state.chat_history) > 1:
                     st.info(f"{len(st.session_state.chat_history)} total conversations. View all in the AI Chat tab.")
     
-    # Footer
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center; color: #666;'>
