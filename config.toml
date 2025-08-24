@@ -1,0 +1,37 @@
+[global]
+# Global configuration for better performance
+developmentMode = false
+
+[server]
+# Server configuration for public deployment
+headless = true
+enableCORS = false
+enableXsrfProtection = true
+
+# File upload settings
+maxUploadSize = 5
+maxMessageSize = 5
+
+# Performance settings
+runOnSave = false
+allowRunOnSave = false
+
+[browser]
+# Browser settings for better UX
+gatherUsageStats = false
+showErrorDetails = false
+
+[theme]
+# Custom theme for FinWise AI
+primaryColor = "#1f77b4"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f8f9fa"
+textColor = "#333333"
+
+# Font settings
+font = "sans serif"
+
+[logger]
+# Logging configuration
+level = "info"
+messageFormat = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
